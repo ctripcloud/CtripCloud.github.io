@@ -19,7 +19,7 @@ description: >- # this means to ignore newlines until "baseurl:"
     Record everything we have learned.
     Compute(KVM -> Docker), Network(neutron, openvswitch, SDN), Storage(Ceph, glusterfs, fastdfs)
     Paas(SCM, CD, Tars, etc.), Mesos, K8s, etc.
-baseurl: "/blog" # the subpath of your site, e.g. /blog
+baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username:
 github_username:
