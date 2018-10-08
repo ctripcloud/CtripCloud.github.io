@@ -2,6 +2,7 @@
 layout: post
 title:  "Monitoring Ceph Object Storage"
 date:   2018-10-08 14:33:28 +0800
+author: ArthurChiao
 categories: ceph monitoring
 ---
 
