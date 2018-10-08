@@ -192,10 +192,98 @@ Apart from monitoring, our system also supports alerting. When the cluster encou
 3. https://stackoverflow.com/questions/14832780/nginx-merge-slashes-redirect
 4. https://stackoverflow.com/questions/20496963/avoid-nginx-decoding-query-parameters-on-proxy-pass-equivalent-to-allowencodeds
 
-## Appendix (TODO)
+## Appendix
 
 ### a. Nginx Conf
 
+```
+$ cat /etc/nginx/nginx.conf
+worker_processes  auto;
+
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $request_length $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for" "$request_time"';
+
+    access_log  /var/log/nginx/access.log  main;
+    error_log  /var/log/nginx/error.log warn;
+
+    # this is necessary for disabling request buffering in all cases
+    proxy_http_version 1.1;
+
+    keepalive_timeout  65;
+
+    # some ceph/s3 URIs uses multiple slashes
+    # merge consecutive slashes to single one (e.g. "/foo//bar" to "/foo/bar")
+    # when forwarding requests will lead to 403 errors
+    merge_slashes off;
+
+    upstream radosgw {
+        server 127.0.0.1:8080 max_fails=5;
+    }
+
+    server {
+        listen 80;
+
+        # disable any limits to avoid HTTP 413 for large image uploads
+        client_max_body_size 0;
+
+        location / {
+            proxy_pass http://radosgw;
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+            proxy_buffering off;
+            proxy_request_buffering off;
+        }
+    }
+}
+```
+
 ### b. Telegraf Conf
 
+```
+$ cat /etc/telegraf/telegraf.d/ceph_nginx.conf
+[agent]
+  interval = "5s"
+
+[[inputs.logparser]]
+  files = ["/var/log/nginx/access.log"]
+  from_beginning = false
+  [inputs.logparser.grok]
+    patterns = ['%{NOTSPACE:remote_addr} - %{NOTSPACE:remote_user} \[%{NOTSPACE:timestamp} %{NOTSPACE:time_zone}\] \"%{NOTSPACE:http_method} %{NOTSPACE:uri} %{NOTSPACE:http_version}\" %{NUMBER:status:int} %{NUMBER:request_length:int} %{NUMBER:body_bytes_sent:int} \"%{NOTSPACE:http_referer}\" \"%{NOTSPACE:http_user_agent}\" \"%{NOTSPACE:http_x_forwardede_for}\" \"%{NUMBER:request_time:float}\"']
+    measurement = "nginx_access_log"
+  [inputs.logparser.tags]
+    cluster_name = "NT_TEST"
+    host_name = "SVR1234HP380"
+    host_ip = "10.5.1.2"
+```
+
 ### c. Ceph Conf
+
+```
+$ cat /etc/ceph/ceph.conf
+[global]
+auth_service_required = cephx
+auth_client_required = cephx
+auth_cluster_required = cephx
+mon_host = 192.168.1.4,192.168.1.3,192.168.1.2
+mon_initial_members = SVR1234HW2285, SVR1235HW2285, SVR1236HW2285
+fsid = e87ba99e-99bb-4444-abcd-906d2e83fbf4
+
+[client]
+rgw_frontends = civetweb port=80
+rgw_override_bucket_index_max_shards = 8
+rbd default format = 2
+rbd default features = 13
+```
