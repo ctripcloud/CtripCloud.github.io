@@ -9,7 +9,7 @@ categories: ceph monitoring
 Ceph is a widely-used distributed file system which supports **object storage, block storage, and distributed file system (Ceph FS)**.
 We ([**Ctrip Cloud**](https://github.com/CtripCloud)) use ceph to provide object storage service in our private cloud, with `10+` clusters (for historical reasons, each cluster is not very large), providing a total `10+ PB` effective capacity.
 
-Ceph is powerful and complicated, but there haven't some mature or equally widely used monitoring solutions for Ceph.
+Ceh is powerful and complicated, but there haven't some mature or equally widely used monitoring solutions for Ceph.
 In this article, we show our one for the object storage part.
 
 ## 1. Introduction
@@ -35,6 +35,8 @@ Requests details usually are recorded in a web servers' access log, for civetweb
 
 <p align="center"><img src="/assets/img/monitoring-ceph/nginx_proxy.png" width="50%" height="50%"></p>
 
+Non-extensive tests show that adding nginx introduced little performance drop.
+
 ### 2.3 Overall Monitoring Solution
 
 The overall solution consists of following components:
@@ -53,7 +55,7 @@ Implemented in go and built to a binary.
 Run every 5 minutes and write data directly to influxdb.
 
 Data collecting code initially based on telegraf ceph input, then added some new metrics and removed some old ones.
-Support configuration and logging, each default to `/etc/ceph-collector/ceph-collector.conf` and `/etc/ceph-collector/ceph-collector.log`.
+Support configuration and logging, each default to `/etc/ceph-collector/conf.json` and `/etc/ceph-collector/ceph-collector.log`.
 
 ### 3.2 Reverse Proxy
 
@@ -119,21 +121,42 @@ We group the monitoring metrics into 4 parts:
 
 ### 4.1 Nginx
 
-Metrics include:
+<p align="center"><img src="/assets/img/monitoring-ceph/nginx-stats.jpg" width="90%" height="90%"></p>
 
-* upload/download latency statistics: max, min, average, P99, P90, P50
+#### 4.1.1 upload/download latency
+
+* statistics: max, min, average, P99, P90, P50.
 * response time graph: upload, download, delete, list
-* 4xx and 5xx count graph
-* upload/download requests distribution over storage nodes
+* list count, list latency: list operation is time-consuming in distributed object storage systems
+
+The latency metrics filtered out requests with body size larger than 1MB, since we observiced that 98% objects in our cluster are below the size.
+
+<p align="center"><img src="/assets/img/monitoring-ceph/latency-stats.jpg" width="70%" height="70%"></p>
+
+#### 4.1.2 API status
+
+* API success rate
+* 4xx and 5xx count
+
+<p align="center"><img src="/assets/img/monitoring-ceph/api-stats.jpg" width="60%" height="60%"></p>
+
+#### 4.1.3 upload/download requests
+
 * upload/download count, and slow upload/download count
-* slow upload/download distribution over storage nodes
+* requests and slow requests distribution over storage nodes
 * upload/download size distribution
-* list count, list latency
-* upload/download bandwidth: per-bucket and total bandwidth
 
-<p align="center"><img src="/assets/img/monitoring-ceph/grafana-nginx.jpg" width="100%" height="100%"></p>
+<p align="center"><img src="/assets/img/monitoring-ceph/updown-request-dist.jpg" width="75%" height="75%"></p>
 
-<p align="center"><img src="/assets/img/monitoring-ceph/grafana-per-bucket-bw.jpg" width="50%" height="50%"></p>
+<p align="center"><img src="/assets/img/monitoring-ceph/updown-size-dist.jpg" width="45%" height="45%"></p>
+
+#### 4.1.4 upload/download bandwidth
+
+per-bucket and total bandwidth.
+
+<p align="center"><img src="/assets/img/monitoring-ceph/bw.jpg" width="50%" height="50%"></p>
+
+<p align="center"><img src="/assets/img/monitoring-ceph/per-bucket-bw.jpg" width="50%" height="50%"></p>
 
 ### 4.2 Suspecious and Error Responses Details
 
@@ -156,13 +179,42 @@ Details requests/responses:
 
 ### 4.4 Ceph Internal Metrics
 
-* Ceph healthy status
-* IOPS: read, write
-* Usage: total size, used size, total objects
-* Commit/Apply latency
-* OSD status
-
 <p align="center"><img src="/assets/img/monitoring-ceph/grafana-internal-metrics.jpg" width="90%" height="90%"></p>
+
+#### 4.4.1 Ceph healthy status
+
+#### 4.4.2 IOPS: read, write
+
+Except the IOPS stats from ceph, we also predicted the upper bound of read and write IOPS.
+The write uppper bound is calculated with following formula (we got the initial model from ebay, and improved it):
+
+```
+upper bound = <total_osd> * <max_write_iops_per_osd> / <replica> / <write_times>
+
+max_write_iops_per_osd = 100  # 100 IOPS is a moderate value for SATA
+replica = 3                   # 3 replication
+write_times = 2               # filestore will first write journal, then write to disk
+```
+
+Max read IOPS is similar, but it doesn't need to the `write_times` factor.
+
+The predicted uppper bounds fit nicely to our observed data:
+
+<p align="center"><img src="/assets/img/monitoring-ceph/iops.jpg" width="50%" height="50%"></p>
+
+#### 4.4.3 Usage
+
+Total size, used size, total objects, and their growth over time.
+
+#### 4.4.4 Commit/Apply latency
+
+#### 4.4.5 OSD status
+
+Monitoring total OSDs, `in` OSDs, and `up` OSDs.
+
+#### 4.4.6 Recovery status
+
+Degraded PGs, misplaced PGs, etc
 
 ## 5 Alerting
 
