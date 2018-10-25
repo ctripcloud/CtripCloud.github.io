@@ -316,9 +316,9 @@ $ cat /etc/telegraf/telegraf.d/ceph_nginx.conf
     patterns = ['%{NOTSPACE:remote_addr} - %{NOTSPACE:remote_user} \[%{NOTSPACE:timestamp} %{NOTSPACE:time_zone}\] \"%{NOTSPACE:http_method} %{NOTSPACE:uri} %{NOTSPACE:http_version}\" %{NUMBER:status:int} %{NUMBER:request_length:int} %{NUMBER:body_bytes_sent:int} \"%{NOTSPACE:http_referer}\" \"%{NOTSPACE:http_user_agent}\" \"%{NOTSPACE:http_x_forwardede_for}\" \"%{NUMBER:request_time:float}\"']
     measurement = "nginx_access_log"
   [inputs.logparser.tags]
-    cluster_name = "NT_TEST"
-    host_name = "SVR1234HP380"
-    host_ip = "10.5.1.2"
+    cluster_name = "Cehp_Cluster_1"
+    host_name = "node-1"
+    host_ip = "192.168.1.2"
 ```
 
 ### c. Ceph Conf
@@ -330,7 +330,7 @@ auth_service_required = cephx
 auth_client_required = cephx
 auth_cluster_required = cephx
 mon_host = 192.168.1.4,192.168.1.3,192.168.1.2
-mon_initial_members = SVR1234HW2285, SVR1235HW2285, SVR1236HW2285
+mon_initial_members = node-1, node-2, node-3
 fsid = e87ba99e-99bb-4444-abcd-906d2e83fbf4
 
 [client]
